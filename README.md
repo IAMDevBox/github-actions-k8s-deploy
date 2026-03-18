@@ -58,8 +58,8 @@ git push origin feature/my-feature
 ## Repository Structure
 
 ```
-.github/workflows/
-  deploy.yml          # Main CI/CD pipeline (test → build → deploy)
+workflow-examples/
+  deploy.yml          # Main CI/CD pipeline — copy to .github/workflows/ to activate
 
 k8s/
   rbac.yaml           # ServiceAccount, Role, RoleBinding (least-privilege)
