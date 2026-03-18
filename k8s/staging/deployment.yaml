@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: myapp
+  namespace: staging
+  labels:
+    app: myapp
+    environment: staging
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: myapp
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: myapp
+        environment: staging
+    spec:
+      imagePullSecrets:
+      - name: ghcr-secret
+      containers:
+      - name: myapp
+        # IMAGE_TAG is replaced by CI pipeline with the actual git SHA
+        image: ghcr.io/YOUR_ORG/YOUR_REPO:IMAGE_TAG
+        ports:
+        - containerPort: 8080
+        env:
+        - name: NODE_ENV
+          value: "staging"
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+          limits:
+            cpu: "300m"
+            memory: "256Mi"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          failureThreshold: 3
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true

@@ -1,0 +1,42 @@
+# Flagger Canary for progressive delivery
+# Requires Flagger to be installed: https://flagger.app/
+# Gradually shifts traffic from current to new version, auto-rolls back on high error rate.
+apiVersion: flagger.app/v1beta1
+kind: Canary
+metadata:
+  name: myapp
+  namespace: production
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: myapp
+  progressDeadlineSeconds: 600
+  service:
+    port: 80
+    targetPort: 8080
+  analysis:
+    # Promote canary after 5 successful analysis runs (5 * 1min = 5 min)
+    interval: 1m
+    threshold: 5
+    maxWeight: 50
+    stepWeight: 10
+    metrics:
+    - name: request-success-rate
+      # Rollback if success rate drops below 99%
+      thresholdRange:
+        min: 99
+      interval: 1m
+    - name: request-duration
+      # Rollback if p99 latency exceeds 500ms
+      thresholdRange:
+        max: 500
+      interval: 1m
+    webhooks:
+    - name: smoke-test
+      type: pre-rollout
+      url: http://flagger-loadtester.test/
+      timeout: 15s
+      metadata:
+        type: bash
+        cmd: "curl -sd 'test' http://myapp-canary.production/health | grep -q 'ok'"

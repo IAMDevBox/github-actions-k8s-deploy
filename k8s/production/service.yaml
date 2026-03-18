@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: myapp
+  namespace: production
+  labels:
+    app: myapp
+    environment: production
+spec:
+  # 'version' selector is updated by the pipeline during blue-green switch
+  selector:
+    app: myapp
+    version: blue
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8080
+  type: ClusterIP
