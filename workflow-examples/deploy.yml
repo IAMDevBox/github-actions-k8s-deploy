@@ -1,0 +1,233 @@
+name: Build and Deploy to Kubernetes
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run linter
+        run: npm run lint
+
+      - name: Run unit tests
+        run: npm test
+
+      - name: Run integration tests
+        run: npm run test:integration
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    outputs:
+      image_tag: ${{ steps.meta.outputs.tags }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix={{branch}}-
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            NODE_ENV=production
+            BUILD_DATE=${{ github.event.head_commit.timestamp }}
+            VCS_REF=${{ github.sha }}
+
+  deploy-staging:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/develop'
+    environment:
+      name: staging
+      url: https://staging.example.com
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.28.0'
+
+      - name: Configure kubectl
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.KUBE_CONFIG_STAGING }}" | base64 -d > $HOME/.kube/config
+          chmod 600 $HOME/.kube/config
+
+      - name: Verify cluster access
+        run: |
+          kubectl cluster-info
+          kubectl get nodes
+
+      - name: Deploy to staging
+        env:
+          GIT_SHA: ${{ github.sha }}
+        run: |
+          # Replace image tag placeholder in deployment manifest
+          sed -i "s|IMAGE_TAG|${GIT_SHA}|g" k8s/staging/deployment.yaml
+
+          # Apply Kubernetes manifests
+          kubectl apply -f k8s/staging/
+
+          # Wait for rollout to complete
+          kubectl rollout status deployment/myapp -n staging --timeout=5m
+
+      - name: Run smoke tests
+        run: |
+          kubectl run smoke-test \
+            --image=curlimages/curl:latest \
+            --rm -i --restart=Never -- \
+            curl -f http://myapp.staging.svc.cluster.local:8080/health || exit 1
+
+  deploy-production:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    environment:
+      name: production
+      url: https://example.com
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.28.0'
+
+      - name: Configure kubectl
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.KUBE_CONFIG_PROD }}" | base64 -d > $HOME/.kube/config
+          chmod 600 $HOME/.kube/config
+
+      - name: Blue-Green Deployment
+        env:
+          GIT_SHA: ${{ github.sha }}
+        run: |
+          # Label current production as blue
+          kubectl label deployment myapp version=blue -n production --overwrite
+
+          # Deploy new version as green
+          sed -i "s|IMAGE_TAG|${GIT_SHA}|g" k8s/production/deployment.yaml
+          sed -i "s|myapp|myapp-green|g" k8s/production/deployment.yaml
+
+          kubectl apply -f k8s/production/deployment.yaml
+
+          # Wait for green deployment to be ready
+          kubectl rollout status deployment/myapp-green -n production --timeout=10m
+
+      - name: Smoke test green deployment
+        run: |
+          kubectl run smoke-test-green \
+            --image=curlimages/curl:latest \
+            --rm -i --restart=Never -- \
+            curl -f http://myapp-green.production.svc.cluster.local:8080/health
+
+      - name: Switch traffic to green
+        run: |
+          # Point service selector to green pods
+          kubectl patch service myapp -n production \
+            -p '{"spec":{"selector":{"version":"green"}}}'
+          echo "Traffic switched to green deployment"
+
+      - name: Monitor for 5 minutes
+        run: |
+          sleep 300
+
+          # Auto-rollback if error rate exceeds threshold
+          ERROR_COUNT=$(kubectl logs -l version=green -n production --tail=1000 | grep ERROR | wc -l)
+          if [ "$ERROR_COUNT" -gt 10 ]; then
+            echo "High error rate detected ($ERROR_COUNT errors), rolling back to blue"
+            kubectl patch service myapp -n production \
+              -p '{"spec":{"selector":{"version":"blue"}}}'
+            exit 1
+          fi
+          echo "Error count: $ERROR_COUNT — within threshold"
+
+      - name: Clean up blue deployment
+        run: |
+          kubectl delete deployment myapp -n production --ignore-not-found
+          kubectl label deployment myapp-green version=blue -n production --overwrite
+
+      - name: Notify Slack
+        if: always()
+        uses: slackapi/slack-github-action@v1
+        env:
+          JOB_STATUS: ${{ job.status }}
+          REPO: ${{ github.repository }}
+          GIT_SHA: ${{ github.sha }}
+          ACTOR: ${{ github.actor }}
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK }}
+          payload: |
+            {
+              "text": "Deployment to production ${{ job.status }}",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Deployment Status:* ${{ job.status }}\n*Image:* ghcr.io/${{ github.repository }}:${{ github.sha }}\n*Deployed by:* ${{ github.actor }}"
+                  }
+                }
+              ]
+            }
