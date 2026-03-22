@@ -21,7 +21,7 @@ Production-grade GitHub Actions CI/CD pipeline for Kubernetes deployments. Battl
 
 ## Full Tutorial
 
-**[Setting Up a CI/CD Pipeline to Kubernetes with GitHub Actions](https://iamdevbox.com/posts/setting-up-a-cicd-pipeline-to-kubernetes-with-github-actions/)**
+**[Setting Up a CI/CD Pipeline to Kubernetes with GitHub Actions](https://iamdevbox.com/posts/setting-up-a-cicd-pipeline-to-kubernetes-with-github-actions/?utm_source=github&utm_medium=companion-repo&utm_campaign=github-actions-k8s-deploy)**
 
 Covers the real problems most tutorials skip: RBAC permission errors, ImagePullBackOff from private registries, kubeconfig management, and production-ready blue-green deployments.
 
@@ -123,11 +123,11 @@ kubectl apply -f k8s/rbac.yaml
 
 ## Related Articles
 
-- [Setting Up a CI/CD Pipeline to Kubernetes with GitHub Actions](https://iamdevbox.com/posts/setting-up-a-cicd-pipeline-to-kubernetes-with-github-actions/) — Full tutorial with troubleshooting guide
-- [Orchestrating Kubernetes and IAM with Terraform](https://iamdevbox.com/posts/orchestrating-kubernetes-and-iam-with-terraform-a-comprehensive-guide/) — Terraform module for the EKS cluster this pipeline deploys to
-- [OAuth 2.0 Authorization Code Flow with Node.js](https://iamdevbox.com/posts/oauth-20-authorization-flow-using-nodejs-and-express/) — Secure the deployed app with OAuth
-- [Keycloak Docker Compose Production Setup](https://iamdevbox.com/posts/keycloak-docker-compose-production-deployment-guide/) — Add SSO to applications deployed via this pipeline
-- [IAMDevBox.com](https://iamdevbox.com/) — Identity & Access Management tutorials for developers
+- [Setting Up a CI/CD Pipeline to Kubernetes with GitHub Actions](https://iamdevbox.com/posts/setting-up-a-cicd-pipeline-to-kubernetes-with-github-actions/?utm_source=github&utm_medium=companion-repo&utm_campaign=github-actions-k8s-deploy) — Full tutorial with troubleshooting guide
+- [Orchestrating Kubernetes and IAM with Terraform](https://iamdevbox.com/posts/orchestrating-kubernetes-and-iam-with-terraform-a-comprehensive-guide/?utm_source=github&utm_medium=companion-repo&utm_campaign=github-actions-k8s-deploy) — Terraform module for the EKS cluster this pipeline deploys to
+- [OAuth 2.0 Authorization Code Flow with Node.js](https://iamdevbox.com/posts/oauth-20-authorization-flow-using-nodejs-and-express/?utm_source=github&utm_medium=companion-repo&utm_campaign=github-actions-k8s-deploy) — Secure the deployed app with OAuth
+- [Keycloak Docker Compose Production Setup](https://iamdevbox.com/posts/keycloak-docker-compose-production-deployment-guide/?utm_source=github&utm_medium=companion-repo&utm_campaign=github-actions-k8s-deploy) — Add SSO to applications deployed via this pipeline
+- [IAMDevBox.com](https://iamdevbox.com/?utm_source=github&utm_medium=companion-repo&utm_campaign=github-actions-k8s-deploy) — Identity & Access Management tutorials for developers
 
 ## License
 
